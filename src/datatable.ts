@@ -781,9 +781,25 @@ export class DataTable {
                     columnQueryArr.push(columnQuery)
                 } 
                 return columnQueryArr.filter(queryWord => queryWord)
-            }
-        )
-        )
+                }
+            )
+        ).flat()
+
+        const searchAnd = this.options.searchAnd
+        const searchAndArray = queries.map(query => {
+            const searchQuerySeparator = this.options.searchQuerySeparator
+            let columnQuery = query.term
+            let columnQueryArr = columnQuery.split(searchQuerySeparator)
+            let columnQueryArrIdx = []
+                if (searchAnd) {
+                    columnQueryArr = columnQuery.split(searchQuerySeparator).filter(queryWord => queryWord)
+                    columnQueryArr.forEach((searchTerm) => {
+                        columnQueryArrIdx.push(columnQueryArr.indexOf(searchTerm))
+                    })
+                    return columnQueryArrIdx
+                }
+        }).flat()
+
         this.data.data.forEach((row: cellType[], idx: number) => {
             const searchRow = row.map((cell, i) => {
                 let content = (cell.text || String(cell.data)).trim()
@@ -803,18 +819,38 @@ export class DataTable {
                 }
                 return content
             })
-            if (
-                queryWords.every(
-                    queries => queries.find(
-                        (query, index) => query ?
-                            query.find(queryWord => searchRow[index].includes(queryWord)) :
-                            false
-                    )
-                )
-            ) {
-                this._searchData.push(idx)
-            }
 
+            if (!searchAnd) {
+                let foundOrMatch = false
+                queryWords.forEach(
+                    (query, index) => {
+                        if(Array.isArray(query)){
+                            query.forEach((queryTerm) => {
+                                if (searchRow[index].includes(queryTerm)) {
+                                    foundOrMatch = true
+                                }
+                            })
+                        }
+                    })
+                if (foundOrMatch){
+                    this._searchData.push(idx)
+                }
+            } else {
+                let searchAndArrayRow = searchAndArray
+                searchRow.forEach((column, index) => {
+                    let queryWordsColumn = queryWords[index]
+                    if (Array.isArray(queryWordsColumn)) {
+                        queryWordsColumn.forEach((query, index) => {
+                            if (column.includes(query)) {
+                                searchAndArrayRow = searchAndArrayRow.filter(e => e !== index)
+                            }
+                        })
+                    }
+                })
+                if (searchAndArrayRow.length == 0) {
+                    this._searchData.push(idx)
+                }
+            }
         })
 
         this.wrapperDOM.classList.add("search-results")
